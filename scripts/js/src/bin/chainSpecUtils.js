@@ -3,9 +3,9 @@
 // Can be useful after a "hard-spoon" of a live blockchain to spawn a new chain for testing.
 // Partically forked from fork-off-substrate (https://raw.githubusercontent.com/maxsam4/fork-off-substrate)
 
-const { loadJson, /*writeJson*/ } = require('../utils/common');
+const { loadJsonPromise, /*writeJson*/ } = require('../utils/common');
 const { xxhashAsHex } = require('@polkadot/util-crypto');
-
+const bigJson = require('big-json');
 const { program } = require('commander');
 
 program
@@ -43,13 +43,13 @@ program
 //   }
 // }
 
-function main(origSpecPath) {
+async function  main(origSpecPath) {
     const opts = program.opts();
     // const origSpec = loadJson(origSpecPath);
-    const targetSpec = loadJson(origSpecPath);
+    const targetSpec = await loadJsonPromise(origSpecPath);
 
     if (opts.replaceStorage) {
-        const storageSpec = loadJson(opts.replaceStorage);
+        const storageSpec = await loadJsonPromise(opts.replaceStorage);
 
         const keptPrefixes = opts.keptPrefixes.split(',');
         const skipPallets = opts.skipPallets.split(',');
@@ -60,7 +60,7 @@ function main(origSpecPath) {
             .filter(([k, _v]) =>
                 k != '0x3a636f6465'
                 && (keptPrefixes.some(prefix => k.startsWith(prefix))
-                    || !skipPrefixes.some(prefix => k.startsWith(prefix)))
+                    || skipPrefixes.some(prefix => k.startsWith(prefix)))
             )
             .forEach(([key, value]) => (targetSpec.genesis.raw.top[key] = value));
     }
@@ -98,10 +98,20 @@ function main(origSpecPath) {
     // forkedSpec.genesis.raw.top['0x3a636f6465'] = '0x' + fs.readFileSync(hexPath, 'utf8').trim();
 
     // To prevent the validator set from changing mid-test, set Staking.ForceEra to ForceNone ('0x02')
-    const STAKING_FORCE_ERA = '0x5f3e4907f716ac89b6347d15ececedcaf7dad0317324aecae8744b87fc95f2f3';
-    if (targetSpec.genesis.raw.top[STAKING_FORCE_ERA]) {
-        forkedSpec.genesis.raw.top[STAKING_FORCE_ERA] = '0x02';
-    }
+    // const STAKING_FORCE_ERA = '0x5f3e4907f716ac89b6347d15ececedcaf7dad0317324aecae8744b87fc95f2f3';
+    // if (targetSpec.genesis.raw.top[STAKING_FORCE_ERA]) {
+    //     targetSpec.genesis.raw.top[STAKING_FORCE_ERA] = '0x02';
+    // }
 
-    console.log(JSON.stringify(targetSpec, null, 2));
+    // console.log(JSON.stringify(targetSpec, null, 2));
+
+    const stringifyStream = bigJson.createStringifyStream({
+        body: targetSpec
+    });
+     
+    stringifyStream.on('data', function(strChunk) {
+        // => BIG_POJO will be sent out in JSON chunks as the object is traversed
+        console.log(strChunk);
+    });
+
 }
